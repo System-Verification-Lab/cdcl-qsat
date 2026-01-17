@@ -1,16 +1,6 @@
 mod minkowski;
 mod annulus;
-mod zerotest;
+mod polygon;
 
-use crate::Complex;
+use polygon::ConvexPolygon;
 
-struct ConvexPolygon<C: Complex>(Vec<C>);
-
-impl<C: Complex> ConvexPolygon<C> {
-	fn raw(points: Vec<C>) -> Self {
-		ConvexPolygon(points)
-	}
-	fn points(&self) -> &Vec<C> {
-		&self.0
-	}
-}

@@ -1,17 +1,32 @@
-use std::ops::{Add, Div, Mul, Sub};
+use std::ops::{Add, Div, Mul, Sub, Neg};
 use ordered_float::OrderedFloat;
 
 pub trait Real: Clone + PartialEq + Ord
-+ Add<Output = Self> + Mul<Output = Self> + Sub<Output = Self> + Div<Output = Self> {
++ Add<Output = Self> + Mul<Output = Self> + Sub<Output = Self>
++ Div<Output = Self> + Neg<Output = Self> {
 	fn zero() -> Self;
+	fn sign(&self) -> i8 {
+		if *self > Self::zero() {
+			1
+		} else if *self < Self::zero() {
+			-1
+		} else {
+			0
+		}
+	}
 }
 
 pub trait Complex: Clone + PartialEq
-+ Add<Output = Self> + Mul<Output = Self> + Sub<Output = Self> + Div<Output = Self> {
++ Add<Output = Self> + Mul<Output = Self> + Sub<Output = Self>
++ Div<Output = Self> + Neg<Output = Self>
+{
 	type Real: Real;
 	fn re(&self) -> Self::Real;
 	fn im(&self) -> Self::Real;
 	fn raw(re: Self::Real, im: Self::Real) -> Self;
+	fn zero() -> Self {
+		Self::raw(Self::Real::zero(), Self::Real::zero())
+	}
 }
 
 pub fn cross_product<C: Complex>(a: C, b: C) -> C::Real {
@@ -63,6 +78,13 @@ impl Div for ComplexFloat {
 			(self.0.clone() * other.0.clone() + self.1.clone() * other.1.clone()) / denom.clone(),
 			(self.1.clone() * other.0 - self.0.clone() * other.1) / denom,
 		)
+	}
+}
+
+impl Neg for ComplexFloat {
+	type Output = Self;
+	fn neg(self) -> Self {
+		ComplexFloat(-self.0, -self.1)
 	}
 }
 

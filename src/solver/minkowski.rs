@@ -4,7 +4,7 @@ use super::ConvexPolygon;
 /// Andrew's convex hull algorithm adapted from
 /// https://en.wikibooks.org/wiki/Algorithm_Implementation/Geometry/Convex_hull/Monotone_chain
 
-pub fn convex_hull<C: Complex>(mut points: Vec<C>) -> ConvexPolygon<C> 
+fn convex_hull<C: Complex>(mut points: Vec<C>) -> ConvexPolygon<C> 
 {
 	points.sort_by(|a, b| a.re().cmp(&b.re()).then_with(|| a.im().cmp(&b.im())));
 	points.dedup();
@@ -37,10 +37,58 @@ fn build_hull<'a, C: Complex + 'a>(points: impl Iterator<Item = &'a C>) -> Vec<C
 	hull
 }
 
+/// Sums and products
+
+pub fn convex_minkowski_product<C: Complex>(poly_a: ConvexPolygon<C>, poly_b: ConvexPolygon<C>)
+-> ConvexPolygon<C> {
+	let mut points = Vec::new();
+	for a in poly_a.points() {
+		for b in poly_b.points() {
+			points.push(a.clone() * b.clone());
+		}
+	}
+	convex_hull(points)
+}
+
+pub fn minkowski_sum<C: Complex>(mut poly_a: ConvexPolygon<C>, mut poly_b: ConvexPolygon<C>)
+-> ConvexPolygon<C> {
+	poly_a.sort();
+	poly_b.sort();
+	let a_points = poly_a.points();
+	let b_points = poly_b.points();
+	let n = a_points.len();
+	let m = b_points.len();
+	let mut i = 0;
+	let mut j = 0;
+	let mut result_points = Vec::with_capacity(n + m);
+	while i < n || j < m {
+		result_points.push(a_points[i % n].clone() + b_points[j % m].clone());
+		if i < n && j < m {
+			let a_edge = a_points[(i + 1) % n].clone() - a_points[i % n].clone();
+			let b_edge = b_points[(j + 1) % m].clone() - b_points[j % m].clone();
+			let axb = cross_product(a_edge.clone(), b_edge.clone());
+			if axb > C::Real::zero() {
+				i += 1;
+			} else if axb < C::Real::zero() {
+				j += 1;
+			} else {
+				i += 1;
+				j += 1;
+			}
+		} else if i < n {
+			i += 1;
+		} else {
+			j += 1;
+		}
+	}
+	ConvexPolygon::raw(result_points)
+}
+
 #[cfg(test)]
 mod test {
-	use super::convex_hull;
+	use super::{convex_hull, convex_minkowski_product, minkowski_sum};
 	use crate::arithmetic::{ComplexFloat, Float};
+	use crate::solver::polygon::ConvexPolygon;
 	use crate::Complex;
 
 	fn f(value: f64) -> Float {
@@ -49,6 +97,10 @@ mod test {
 
 	fn cf(re: f64, im: f64) -> ComplexFloat {
 		ComplexFloat::raw(f(re), f(im))
+	}
+
+	fn poly(points: Vec<ComplexFloat>) -> ConvexPolygon<ComplexFloat> {
+		ConvexPolygon::raw(points)
 	}
 
 	#[test]
@@ -80,4 +132,36 @@ mod test {
 		let expected = vec![cf(0.0, 0.0), cf(2.0, 0.0)];
 		assert_eq!(hull.points(), &expected);
 	}
+
+	#[test]
+	fn minkowski_sum_merges_parallel_edges() {
+		let square = poly(vec![
+			cf(0.0, 0.0),
+			cf(1.0, 0.0),
+			cf(1.0, 1.0),
+			cf(0.0, 1.0),
+		]);
+		let rectangle = poly(vec![
+			cf(0.0, 0.0),
+			cf(2.0, 0.0),
+			cf(2.0, 1.0),
+			cf(0.0, 1.0),
+		]);
+		let sum = minkowski_sum(square, rectangle);
+		let expected = vec![cf(0.0, 0.0), cf(3.0, 0.0), cf(3.0, 2.0), cf(0.0, 2.0)];
+		assert_eq!(sum.points(), &expected);
+	}
+
+	#[test]
+	fn convex_minkowski_product_hulls_pairwise_products() {
+		let triangle = poly(vec![
+			cf(0.0, 0.0),
+			cf(1.0, 0.0),
+			cf(0.0, 1.0),
+		]);
+		let hull = convex_minkowski_product(triangle.clone(), triangle);
+		let expected = vec![cf(-1.0, 0.0), cf(1.0, 0.0), cf(0.0, 1.0)];
+		assert_eq!(hull.points(), &expected);
+	}
+
 }
