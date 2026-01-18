@@ -4,7 +4,7 @@ use super::ConvexPolygon;
 /// Andrew's convex hull algorithm adapted from
 /// https://en.wikibooks.org/wiki/Algorithm_Implementation/Geometry/Convex_hull/Monotone_chain
 
-fn convex_hull<C: Complex>(mut points: Vec<C>) -> ConvexPolygon<C> 
+pub(super) fn convex_hull<C: Complex>(mut points: Vec<C>) -> ConvexPolygon<C> 
 {
 	points.sort_by(|a, b| a.re().cmp(&b.re()).then_with(|| a.im().cmp(&b.im())));
 	points.dedup();
@@ -52,8 +52,8 @@ pub fn convex_minkowski_product<C: Complex>(poly_a: ConvexPolygon<C>, poly_b: Co
 
 pub fn minkowski_sum<C: Complex>(mut poly_a: ConvexPolygon<C>, mut poly_b: ConvexPolygon<C>)
 -> ConvexPolygon<C> {
-	poly_a.sort();
-	poly_b.sort();
+	poly_a.sort(); poly_a.normalise();
+	poly_b.sort(); poly_b.normalise();
 	let a_points = poly_a.points();
 	let b_points = poly_b.points();
 	let n = a_points.len();
@@ -81,27 +81,14 @@ pub fn minkowski_sum<C: Complex>(mut poly_a: ConvexPolygon<C>, mut poly_b: Conve
 			j += 1;
 		}
 	}
-	ConvexPolygon::raw(result_points)
+
+	ConvexPolygon::new(result_points)
 }
 
 #[cfg(test)]
 mod test {
-	use super::{convex_hull, convex_minkowski_product, minkowski_sum};
-	use crate::arithmetic::{ComplexFloat, Float};
-	use crate::solver::polygon::ConvexPolygon;
-	use crate::Complex;
-
-	fn f(value: f64) -> Float {
-		Float::from(value)
-	}
-
-	fn cf(re: f64, im: f64) -> ComplexFloat {
-		ComplexFloat::raw(f(re), f(im))
-	}
-
-	fn poly(points: Vec<ComplexFloat>) -> ConvexPolygon<ComplexFloat> {
-		ConvexPolygon::raw(points)
-	}
+	use super::*;
+	use crate::{cf};
 
 	#[test]
 	fn convex_hull_dedups_and_sorts_short_input() {
@@ -135,13 +122,13 @@ mod test {
 
 	#[test]
 	fn minkowski_sum_merges_parallel_edges() {
-		let square = poly(vec![
+		let square = ConvexPolygon::raw(vec![
 			cf(0.0, 0.0),
 			cf(1.0, 0.0),
 			cf(1.0, 1.0),
 			cf(0.0, 1.0),
 		]);
-		let rectangle = poly(vec![
+		let rectangle = ConvexPolygon::raw(vec![
 			cf(0.0, 0.0),
 			cf(2.0, 0.0),
 			cf(2.0, 1.0),
@@ -154,7 +141,7 @@ mod test {
 
 	#[test]
 	fn convex_minkowski_product_hulls_pairwise_products() {
-		let triangle = poly(vec![
+		let triangle = ConvexPolygon::raw(vec![
 			cf(0.0, 0.0),
 			cf(1.0, 0.0),
 			cf(0.0, 1.0),

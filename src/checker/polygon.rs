@@ -1,6 +1,7 @@
 use core::panic;
 
 use crate::{Complex, Real, cross_product};
+use super::minkowski::convex_hull;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) struct ConvexPolygon<C: Complex>(Vec<C>);
@@ -12,12 +13,15 @@ impl<C: Complex> ConvexPolygon<C> {
 		}
 		ConvexPolygon(points)
 	}
+
+	pub fn new(points: Vec<C>) -> Self {
+		convex_hull(points)
+	}
+
 	pub fn points(&self) -> &Vec<C> {
 		&self.0
 	}
-	/*pub fn unpack_points(self) -> Vec<C> {
-		self.0
-	}*/
+
 	pub fn sort(&mut self) {
 		let vec = &self.0;
 		let mut min_index = 0;
@@ -31,6 +35,19 @@ impl<C: Complex> ConvexPolygon<C> {
 			}
 		}
 		self.0.rotate_left(min_index);
+	}
+
+	pub fn normalise(&mut self) {
+		let vertices = &self.0;
+		if vertices.len() < 2 {
+			return;
+		}
+		let cross = cross_product(
+			vertices[0].clone(),
+			vertices[1].clone() - vertices[0].clone());
+		if cross < C::Real::zero() {
+			self.0.reverse();
+		}
 	}
 
 	pub fn contains_zero(&self) -> bool {
@@ -58,12 +75,51 @@ impl<C: Complex> ConvexPolygon<C> {
 			return true;
 		}
 	}
+
+	pub fn area(&self) -> C::Real {
+		let vertices = &self.0;
+		let n = vertices.len();
+		let mut area = C::Real::zero();
+		for i in 0..n {
+			let p1 = vertices[i].clone();
+			let p2 = vertices[(i + 1) % n].clone();
+			area = area + (p1.re() * p2.im() - p2.re() * p1.im());
+		}
+		area.abs() / C::Real::int(2)
+	}
+
+	pub fn max_mod2(&self) -> C::Real {
+		let mut max_mod2 = C::Real::zero();
+		for point in &self.0 {
+			let mod2 = point.re() * point.re() + point.im() * point.im();
+			if mod2 > max_mod2 {
+				max_mod2 = mod2;
+			}
+		}
+		max_mod2
+	}
+
+	pub fn scale(self, factor: C) -> Self {
+		let scaled_points: Vec<C> = self.0.into_iter()
+			.map(|point| point * factor.clone())
+			.collect();
+		ConvexPolygon::raw(scaled_points)
+	}
+	
+	pub fn print_points(&self) {
+		print!("[");
+		for point in &self.0 {
+			let (re, im) = point.to_float_pair();
+			print!("[{}, {}],", re, im);
+		}
+		print!("]");
+	}
 }
 
 #[cfg(test)]
 mod tests {
 	use super::ConvexPolygon;
-	use crate::arithmetic::{ComplexFloat, Float};
+	use crate::numbers::{ComplexFloat, Float};
 	use crate::Complex;
 
 	fn f(value: f64) -> Float {

@@ -1,10 +1,13 @@
 use std::ops::{Add, Div, Mul, Sub, Neg};
 use ordered_float::OrderedFloat;
+use std::f64::consts::PI;
+use std::fmt::Debug;
 
-pub trait Real: Clone + PartialEq + Ord
+pub trait Real: Clone + Debug + PartialEq + Ord
 + Add<Output = Self> + Mul<Output = Self> + Sub<Output = Self>
 + Div<Output = Self> + Neg<Output = Self> {
 	fn zero() -> Self;
+	fn int(from: u16) -> Self;
 	fn sign(&self) -> i8 {
 		if *self > Self::zero() {
 			1
@@ -14,9 +17,19 @@ pub trait Real: Clone + PartialEq + Ord
 			0
 		}
 	}
+	fn abs(self) -> Self {
+		if self.sign() >= 0 {
+			self
+		} else {
+			-self
+		}
+	}
+	fn cos(numerator: u16, denominator: u16) -> Self;
+	fn sin(numerator: u16, denominator: u16) -> Self;
+	fn to_float(&self) -> f64;
 }
 
-pub trait Complex: Clone + PartialEq
+pub trait Complex: Clone + Debug + PartialEq
 + Add<Output = Self> + Mul<Output = Self> + Sub<Output = Self>
 + Div<Output = Self> + Neg<Output = Self>
 {
@@ -26,6 +39,13 @@ pub trait Complex: Clone + PartialEq
 	fn raw(re: Self::Real, im: Self::Real) -> Self;
 	fn zero() -> Self {
 		Self::raw(Self::Real::zero(), Self::Real::zero())
+	}
+
+	fn from_real(r: Self::Real) -> Self {
+		Self::raw(r, Self::Real::zero())
+	}
+	fn to_float_pair(&self) -> (f64, f64) {
+		(self.re().to_float(), self.im().to_float())
 	}
 }
 
@@ -39,6 +59,18 @@ pub type Float = OrderedFloat<f64>;
 impl Real for Float {
 	fn zero() -> Self {
 		OrderedFloat(0.0)
+	}
+	fn int(from: u16) -> Self {
+		OrderedFloat(from as f64)
+	}
+	fn cos(numerator: u16, denominator: u16) -> Self {
+		OrderedFloat((2.0 * PI * numerator as f64 / denominator as f64).cos())
+	}
+	fn sin(numerator: u16, denominator: u16) -> Self {
+		OrderedFloat((2.0 * PI * numerator as f64 / denominator as f64).sin())
+	}
+	fn to_float(&self) -> f64 {
+		self.0
 	}
 }
 
@@ -101,3 +133,13 @@ impl Complex for ComplexFloat {
 	}
 }
 
+// Helpers
+#[cfg(test)]
+pub fn f(value: f64) -> Float {
+	Float::from(value)
+}
+
+#[cfg(test)]
+pub fn cf(re: f64, im: f64) -> ComplexFloat {
+	ComplexFloat::raw(f(re), f(im))
+}

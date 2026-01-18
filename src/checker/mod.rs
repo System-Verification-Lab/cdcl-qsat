@@ -1,5 +1,5 @@
 mod minkowski;
-mod annulus;
+mod compute;
 mod polygon;
 
 use polygon::ConvexPolygon;
