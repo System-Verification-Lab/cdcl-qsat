@@ -4,7 +4,7 @@ use crate::{Complex, Real, cross_product};
 use super::minkowski::convex_hull;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(super) struct ConvexPolygon<C: Complex>(Vec<C>);
+pub struct ConvexPolygon<C: Complex>(Vec<C>);
 
 impl<C: Complex> ConvexPolygon<C> {
 	pub fn raw(points: Vec<C>) -> Self {
@@ -57,8 +57,11 @@ impl<C: Complex> ConvexPolygon<C> {
 		} else if vertices.len() == 2 {
 			let a = vertices[0].clone();
 			let b = vertices[1].clone();
+			if a == C::zero() || b == C::zero() {
+				return true;
+			}
 			return cross_product(a.clone(), b.clone()) == C::Real::zero()
-				&& (a.re() * b.re() <= C::Real::zero() || a.im() * b.im() <= C::Real::zero())
+				&& (a.re() * b.re() < C::Real::zero() || a.im() * b.im() < C::Real::zero())
 		} else {
 			let n = vertices.len();
 			let mut sign = 0;

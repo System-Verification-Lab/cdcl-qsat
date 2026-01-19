@@ -7,7 +7,7 @@ pub trait Real: Clone + Debug + PartialEq + Ord
 + Add<Output = Self> + Mul<Output = Self> + Sub<Output = Self>
 + Div<Output = Self> + Neg<Output = Self> {
 	fn zero() -> Self;
-	fn int(from: u16) -> Self;
+	fn int(from: usize) -> Self;
 	fn sign(&self) -> i8 {
 		if *self > Self::zero() {
 			1
@@ -24,8 +24,8 @@ pub trait Real: Clone + Debug + PartialEq + Ord
 			-self
 		}
 	}
-	fn cos(numerator: u16, denominator: u16) -> Self;
-	fn sin(numerator: u16, denominator: u16) -> Self;
+	fn cos(numerator: usize, denominator: usize) -> Self;
+	fn sin(numerator: usize, denominator: usize) -> Self;
 	fn to_float(&self) -> f64;
 }
 
@@ -60,13 +60,13 @@ impl Real for Float {
 	fn zero() -> Self {
 		OrderedFloat(0.0)
 	}
-	fn int(from: u16) -> Self {
+	fn int(from: usize) -> Self {
 		OrderedFloat(from as f64)
 	}
-	fn cos(numerator: u16, denominator: u16) -> Self {
+	fn cos(numerator: usize, denominator: usize) -> Self {
 		OrderedFloat((2.0 * PI * numerator as f64 / denominator as f64).cos())
 	}
-	fn sin(numerator: u16, denominator: u16) -> Self {
+	fn sin(numerator: usize, denominator: usize) -> Self {
 		OrderedFloat((2.0 * PI * numerator as f64 / denominator as f64).sin())
 	}
 	fn to_float(&self) -> f64 {
@@ -134,12 +134,10 @@ impl Complex for ComplexFloat {
 }
 
 // Helpers
-#[cfg(test)]
-pub fn f(value: f64) -> Float {
-	Float::from(value)
+pub fn f(value: impl Into<f64>) -> Float {
+	Float::from(value.into())
 }
 
-#[cfg(test)]
-pub fn cf(re: f64, im: f64) -> ComplexFloat {
+pub fn cf(re: impl Into<f64>, im: impl Into<f64>) -> ComplexFloat {
 	ComplexFloat::raw(f(re), f(im))
 }

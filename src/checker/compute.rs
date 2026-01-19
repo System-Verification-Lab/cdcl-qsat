@@ -1,22 +1,23 @@
 use crate::numbers::{Complex, Real};
 use super::ConvexPolygon;
-use super::minkowski::{convex_minkowski_product, minkowski_sum, convex_hull};
+use super::minkowski::{convex_minkowski_product, minkowski_sum};
 
 use std::fmt::Debug;
 
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Fraction {
-	numerator: u16,
-	denominator: u16,
+	numerator: usize,
+	denominator: usize,
 }
 
 impl Fraction {
-	pub fn new(numerator: u16, denominator: u16) -> Self {
+	pub fn new(numerator: usize, denominator: usize) -> Self {
 		Fraction { numerator, denominator }
 	}
 	pub fn smaller_one(&self) -> bool {
 		self.numerator < self.denominator
 	}
-	pub fn scale(self, factor: u16) -> Self {
+	pub fn scale(self, factor: usize) -> Self {
 		Fraction {
 			numerator: self.numerator * factor,
 			denominator: self.denominator * factor,
@@ -66,29 +67,28 @@ pub(super) fn basic_polygons<C: Complex>(theta: Fraction, phi: Fraction)
 
 }
 
+#[derive(Debug, Clone)]
 pub enum ConstraintResult<C: Complex> {
-	Unsat(ConvexPolygon<C>),
-	Maybe { area: C::Real, max_mod2: C::Real, polygon: ConvexPolygon<C> },
+	Unsat,
+	Maybe { area: C::Real, max_mod2: C::Real, },
 }
 
 impl<C: Complex> ConstraintResult<C> {
-	pub fn polygon(&self) -> &ConvexPolygon<C> {
-		match self {
-			ConstraintResult::Unsat(polygon) => polygon,
-			ConstraintResult::Maybe { polygon, .. } => polygon,
-		}
+	pub fn is_unsat(&self) -> bool {
+		matches!(self, ConstraintResult::Unsat)
 	}
 }
 
 
-pub fn check_constraint<C: Complex + Debug>(projector: Vec<C>, angle_limits: Vec<(Fraction, Fraction)>)
--> ConstraintResult<C> {
+pub fn poly_check_constraint<C: Complex>(
+	projector: &Vec<C>, angle_limits: Vec<(Fraction, Fraction)>
+) -> (ConstraintResult<C>, ConvexPolygon<C>) {
 	let n = angle_limits.len();
 	let space_dim = projector.len();
 	assert_eq!(space_dim, 2usize.pow(n as u32));
 
 	let polygons: Vec<[ConvexPolygon<C>; 2]> = angle_limits.into_iter()
-		.map(|(num, den)| basic_polygons::<C>(num, den))
+		.map(|(theta, phi)| basic_polygons::<C>(theta, phi))
 		.collect();
 
 	let mut summands = Vec::<ConvexPolygon<C>>::with_capacity(space_dim);
@@ -98,17 +98,24 @@ pub fn check_constraint<C: Complex + Debug>(projector: Vec<C>, angle_limits: Vec
 			.map(|(pos, polygons)| polygons[(i >> pos) & 1].clone())
 			.reduce(|a, b| convex_minkowski_product(a, b))
 			.unwrap();
-		summands.push(poly.scale(coeff));
+		summands.push(poly.scale(coeff.clone()));
 	}
 	let final_cover = summands.into_iter().reduce(|a, b| minkowski_sum(a, b)).unwrap();
 
 	if !final_cover.contains_zero() {
-		ConstraintResult::Unsat(final_cover)
+		(ConstraintResult::Unsat, final_cover)
 	} else {
 		let area = final_cover.area();
 		let max_mod2 = final_cover.max_mod2();
-		ConstraintResult::Maybe { area, max_mod2, polygon: final_cover}
+		(ConstraintResult::Maybe { area, max_mod2,}, final_cover)
 	}
+}
+
+pub fn check_constraint<C: Complex>(
+	projector: &Vec<C>, angle_limits: Vec<(Fraction, Fraction)>
+) -> ConstraintResult<C> {
+	let (result, _) = poly_check_constraint::<C>(projector, angle_limits);
+	result
 }
 
 
@@ -116,7 +123,6 @@ pub fn check_constraint<C: Complex + Debug>(projector: Vec<C>, angle_limits: Vec
 mod tests {
 	use super::*;
 	use crate::cf;
-	use super::super::minkowski::convex_hull;
 
 	#[test]
 	fn test_constraint_checker() {
@@ -137,21 +143,23 @@ mod tests {
 			(Fraction::new(0, resolution), Fraction::new(0,resolution)),
 		];
 
-		let sat = check_constraint(projector.clone(), sat_angles);
-		let unsat = check_constraint(projector.clone(), unsat_angles);
+		let (sat, _) = poly_check_constraint(&projector, sat_angles);
+		let (unsat, _) = poly_check_constraint(&projector, unsat_angles);
 		
 
 		assert!(matches!(sat, ConstraintResult::Maybe { .. }));
-		assert!(matches!(unsat, ConstraintResult::Unsat(_)));
+		assert!(matches!(unsat, ConstraintResult::Unsat));
 
+		/*
 		println!("SAT points");
-		sat.polygon().print_points();
+		sat_poly.print_points();
 		println!("");
 
 		println!("\nUNSAT points");
-		unsat.polygon().print_points();
+		unsat_poly.print_points();
 		println!("");
 
+		*/
 
 	}
 }
