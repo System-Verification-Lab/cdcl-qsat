@@ -122,10 +122,6 @@ pub fn check_constraint<C: Complex>(
 	projector: &Vec<C>, angle_limits: Vec<(AngleFraction, AngleFraction)>
 ) -> ConstraintResult<C> {
 	let (result, _poly) = poly_check_constraint::<C>(projector, angle_limits);
-	if result.is_maybe() {
-		println!("Constraint result: {:?}", result);
-		println!("Polygon points: {:?}\n", _poly.points());
-	}
 	result
 }
 
