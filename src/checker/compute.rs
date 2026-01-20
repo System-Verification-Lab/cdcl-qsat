@@ -1,31 +1,32 @@
 use crate::numbers::{Complex, Real};
 use super::ConvexPolygon;
 use super::minkowski::{convex_minkowski_product, minkowski_sum};
+use crate::MaybeData;
 
 use std::fmt::Debug;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Fraction {
+pub struct AngleFraction {
 	numerator: usize,
 	denominator: usize,
 }
 
-impl Fraction {
+impl AngleFraction {
 	pub fn new(numerator: usize, denominator: usize) -> Self {
-		Fraction { numerator, denominator }
+		AngleFraction { numerator, denominator }
 	}
 	pub fn smaller_one(&self) -> bool {
 		self.numerator < self.denominator
 	}
 	pub fn scale(self, factor: usize) -> Self {
-		Fraction {
+		AngleFraction {
 			numerator: self.numerator * factor,
 			denominator: self.denominator * factor,
 		}
 	}
 }
 
-pub(super) fn basic_polygons<C: Complex>(theta: Fraction, phi: Fraction)
+pub(super) fn basic_polygons<C: Complex>(theta: AngleFraction, phi: AngleFraction)
 -> [ConvexPolygon<C>; 2]
 {
 	if !theta.smaller_one() || !phi.smaller_one() {
@@ -67,22 +68,28 @@ pub(super) fn basic_polygons<C: Complex>(theta: Fraction, phi: Fraction)
 
 }
 
+
+
 #[derive(Debug, Clone)]
 pub enum ConstraintResult<C: Complex> {
 	Unsat,
-	Maybe { area: C::Real, max_mod2: C::Real, },
+	Maybe(MaybeData<C>),
 }
 
 impl<C: Complex> ConstraintResult<C> {
 	pub fn is_unsat(&self) -> bool {
 		matches!(self, ConstraintResult::Unsat)
 	}
+	pub fn is_maybe(&self) -> bool {
+		matches!(self, ConstraintResult::Maybe(_))
+	}
 }
 
 
 pub fn poly_check_constraint<C: Complex>(
-	projector: &Vec<C>, angle_limits: Vec<(Fraction, Fraction)>
+	projector: &Vec<C>, angle_limits: Vec<(AngleFraction, AngleFraction)>
 ) -> (ConstraintResult<C>, ConvexPolygon<C>) {
+
 	let n = angle_limits.len();
 	let space_dim = projector.len();
 	assert_eq!(space_dim, 2usize.pow(n as u32));
@@ -107,14 +114,18 @@ pub fn poly_check_constraint<C: Complex>(
 	} else {
 		let area = final_cover.area();
 		let max_mod2 = final_cover.max_mod2();
-		(ConstraintResult::Maybe { area, max_mod2,}, final_cover)
+		(ConstraintResult::Maybe(MaybeData { area, max_mod2,}), final_cover)
 	}
 }
 
 pub fn check_constraint<C: Complex>(
-	projector: &Vec<C>, angle_limits: Vec<(Fraction, Fraction)>
+	projector: &Vec<C>, angle_limits: Vec<(AngleFraction, AngleFraction)>
 ) -> ConstraintResult<C> {
-	let (result, _) = poly_check_constraint::<C>(projector, angle_limits);
+	let (result, _poly) = poly_check_constraint::<C>(projector, angle_limits);
+	if result.is_maybe() {
+		println!("Constraint result: {:?}", result);
+		println!("Polygon points: {:?}\n", _poly.points());
+	}
 	result
 }
 
@@ -132,15 +143,15 @@ mod tests {
 
 		let resolution = 10;
 		let sat_angles = vec![
-			(Fraction::new(0, resolution), Fraction::new(0,resolution)),
-			(Fraction::new(resolution/4, resolution), Fraction::new(0,resolution)),
-			(Fraction::new(0, resolution), Fraction::new(0,resolution)),
+			(AngleFraction::new(0, resolution), AngleFraction::new(0,resolution)),
+			(AngleFraction::new(resolution/4, resolution), AngleFraction::new(0,resolution)),
+			(AngleFraction::new(0, resolution), AngleFraction::new(0,resolution)),
 		];
 
 		let unsat_angles = vec![
-			(Fraction::new(0, resolution), Fraction::new(0,resolution)),
-			(Fraction::new(0, resolution), Fraction::new(0,resolution)),
-			(Fraction::new(0, resolution), Fraction::new(0,resolution)),
+			(AngleFraction::new(0, resolution), AngleFraction::new(0,resolution)),
+			(AngleFraction::new(0, resolution), AngleFraction::new(0,resolution)),
+			(AngleFraction::new(0, resolution), AngleFraction::new(0,resolution)),
 		];
 
 		let (sat, _) = poly_check_constraint(&projector, sat_angles);
