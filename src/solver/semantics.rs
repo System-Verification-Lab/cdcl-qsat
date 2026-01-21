@@ -198,12 +198,14 @@ impl Assignment {
 		let mut depths: Vec<(u16, u16)> = Vec::with_capacity(support.len());
 		let mut can_move = Vec::with_capacity(support.len() * 2);
 
-		for q in support {
-			can_move.push(AngleId::Theta(*q));
-			can_move.push(AngleId::Phi(*q));
+		for (i, q) in support.iter().enumerate() {
+			can_move.push(AngleId::Theta(i as u16));
+			can_move.push(AngleId::Phi(i as u16));
 			let depth = self.depths(*q);
 			depths.push(depth);
 		}
+
+
 		can_move.retain(|item| item.get(&depths) > 0);
 
 		while !can_move.is_empty() {

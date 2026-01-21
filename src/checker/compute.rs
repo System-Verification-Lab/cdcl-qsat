@@ -102,6 +102,7 @@ pub fn poly_check_constraint<C: Complex>(
 	for (i, coeff) in projector.into_iter().enumerate() {
 		let poly = polygons
 			.iter().enumerate()
+			// We use `i >> pos`` because we can equivalently reverse all projectors.
 			.map(|(pos, polygons)| polygons[(i >> pos) & 1].clone())
 			.reduce(|a, b| convex_minkowski_product(a, b))
 			.unwrap();
