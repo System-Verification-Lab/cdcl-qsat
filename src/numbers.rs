@@ -47,6 +47,10 @@ pub trait Complex: Clone + Debug + PartialEq
 	fn to_float_pair(&self) -> (f64, f64) {
 		(self.re().to_float(), self.im().to_float())
 	}
+
+	fn abs2(&self) -> Self::Real {
+		self.re().clone() * self.re().clone() + self.im().clone() * self.im().clone()
+	}
 }
 
 pub fn cross_product<C: Complex>(a: C, b: C) -> C::Real {
