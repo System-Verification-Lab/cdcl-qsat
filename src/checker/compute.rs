@@ -24,6 +24,12 @@ impl AngleFraction {
 			denominator: self.denominator * factor,
 		}
 	}
+	pub fn half(self) -> Self {
+		AngleFraction {
+			numerator: self.numerator,
+			denominator: self.denominator * 2
+		}
+	}
 }
 
 pub(super) fn basic_polygons<C: Complex>(theta: AngleFraction, phi: AngleFraction)
@@ -33,41 +39,56 @@ pub(super) fn basic_polygons<C: Complex>(theta: AngleFraction, phi: AngleFractio
 		panic!("Angles must be less than 1");
 	}
 
+	let theta = theta.half();
+
 	// Theta sines/cosines.
 	let cos_t0 = C::Real::cos(theta.numerator, theta.denominator);
 	let cos_t1 = C::Real::cos(theta.numerator + 1, theta.denominator);
-	let sin_t0 = C::Real::sin(theta.numerator, theta.denominator);
-	let sin_t1 = C::Real::sin(theta.numerator + 1, theta.denominator);
+
+	let interval = ConvexPolygon::<C>::new(vec![C::from_real(cos_t0), C::from_real(cos_t1)]);
+
+
+	let r0 = C::Real::sin(theta.numerator, theta.denominator);
+	let r1 = C::Real::sin(theta.numerator + 1, theta.denominator);
 
 	// Phi sines/cosines, doubling the resolution to find the mid angle.
 
 	let phi = phi.scale(2);
 
+	if phi.denominator <= 4 {
+		let annulus = ConvexPolygon::<C>::new(vec![
+			C::raw(r1.clone(), r1.clone()),
+			C::raw(r1.clone(), -r1.clone()),
+			C::raw(-r1.clone(), -r1.clone()),
+			C::raw(-r1.clone(), r1.clone())
+		]);
+		debug_assert!(annulus.contains_zero());
+		return [interval, annulus];
+	}
+
 	let cos_p0 = C::Real::cos(phi.numerator, phi.denominator);
 	let cos_p1 = C::Real::cos(phi.numerator + 2, phi.denominator);
 	let sin_p0 = C::Real::sin(phi.numerator, phi.denominator);
 	let sin_p1 = C::Real::sin(phi.numerator + 2, phi.denominator);
+
 	let cos_pmid = C::Real::cos(phi.numerator + 1, phi.denominator);
 	let sin_pmid = C::Real::sin(phi.numerator + 1, phi.denominator);
 
 	let cos_pdelta = C::Real::cos(1, phi.denominator);
 
 	// Build polygons.
-	let a = C::from_real(sin_t1.clone()) *C::raw(cos_pmid.clone(), sin_pmid.clone());
+	let a = C::from_real(r1.clone()) * C::raw(cos_pmid.clone(), sin_pmid.clone());
 	let a = a / C::from_real(cos_pdelta.clone());
 
-	let b = C::from_real(sin_t1.clone()) * C::raw(cos_p0.clone(), sin_p0.clone());
-	let c = C::from_real(sin_t0.clone()) * C::raw(cos_p0.clone(), sin_p0.clone());
-	let d = C::from_real(sin_t0.clone()) * C::raw(cos_p1.clone(), sin_p1.clone());
-	let e = C::from_real(sin_t1.clone()) * C::raw(cos_p1.clone(), sin_p1.clone());
+	let b = C::from_real(r1.clone()) * C::raw(cos_p0.clone(), sin_p0.clone());
+	let c = C::from_real(r0.clone()) * C::raw(cos_p0.clone(), sin_p0.clone());
+	let d = C::from_real(r0.clone()) * C::raw(cos_p1.clone(), sin_p1.clone());
+	let e = C::from_real(r1.clone()) * C::raw(cos_p1.clone(), sin_p1.clone());
 
-	let interval = ConvexPolygon::<C>::new(vec![C::from_real(cos_t0), C::from_real(cos_t1)]);
 	let annulus = ConvexPolygon::<C>::new(vec![a, b, c, d, e]);
-
 	[interval, annulus]
 
 }
-
 
 
 #[derive(Debug, Clone)]
@@ -141,7 +162,7 @@ mod tests {
 		let resolution = 10;
 		let sat_angles = vec![
 			(AngleFraction::new(0, resolution), AngleFraction::new(0,resolution)),
-			(AngleFraction::new(resolution/4, resolution), AngleFraction::new(0,resolution)),
+			(AngleFraction::new(resolution/2, resolution), AngleFraction::new(0,resolution)),
 			(AngleFraction::new(0, resolution), AngleFraction::new(0,resolution)),
 		];
 

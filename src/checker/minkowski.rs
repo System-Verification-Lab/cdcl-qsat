@@ -27,7 +27,7 @@ fn build_hull<'a, C: Complex + 'a>(points: impl Iterator<Item = &'a C>) -> Vec<C
 		while hull.len() >= 2 {
 			let p1 = hull[hull.len() - 1].clone();
 			let p2 = hull[hull.len() - 2].clone();
-			if cross_product(p1 - p2.clone(), point.clone() - p2) > C::Real::zero() {
+			if cross_product(p1 - p2.clone(), point.clone() - p2).sign() > 0 {
 				break;
 			}
 			hull.pop();
@@ -67,9 +67,10 @@ pub fn minkowski_sum<C: Complex>(mut poly_a: ConvexPolygon<C>, mut poly_b: Conve
 			let a_edge = a_points[(i + 1) % n].clone() - a_points[i % n].clone();
 			let b_edge = b_points[(j + 1) % m].clone() - b_points[j % m].clone();
 			let axb = cross_product(a_edge.clone(), b_edge.clone());
-			if axb > C::Real::zero() {
+			let axb_sign = axb.sign();
+			if axb_sign > 0 {
 				i += 1;
-			} else if axb < C::Real::zero() {
+			} else if axb_sign < 0 {
 				j += 1;
 			} else {
 				i += 1;

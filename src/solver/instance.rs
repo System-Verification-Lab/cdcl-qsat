@@ -128,7 +128,6 @@ pub fn solve<C: Complex>(instance: QsatInstance<C>) -> QsatResult<C> {
 	}
 	debug_assert!(solver.num_vars() == instance.num_vars());
 
-
 	let result = loop {
 		let mut temp_assignment = assignment.clone();
 		temp_assignment.fill();
@@ -152,4 +151,22 @@ pub fn solve<C: Complex>(instance: QsatInstance<C>) -> QsatResult<C> {
 	};
 
 	instance.check_sat(result)
+}
+
+#[cfg(test)]
+mod test {
+	use super::*;
+	use batsat::Lit;
+	#[test]
+	fn test_cdcl_signs() {
+		let mut solver = Solver::new(SolverOpts::default(), BasicCallbacks::new());
+		let var = solver.new_var_default();
+		let lit = Lit::new(var, true);
+		let mut clause = vec![lit];
+		solver.add_clause_reuse(&mut clause);
+		let result = solver.solve_limited(&[]);
+		for (var_idx, val) in solver.get_model().iter().enumerate(){
+			assert_eq!(lbool::TRUE, *val);
+		}
+	}
 }

@@ -53,15 +53,15 @@ impl<C: Complex> ConvexPolygon<C> {
 	pub fn contains_zero(&self) -> bool {
 		let vertices = &self.0;
 		if vertices.len() == 1 {
-			return vertices[0] == C::zero();
+			return vertices[0].abs2().sign() == 0;
 		} else if vertices.len() == 2 {
 			let a = vertices[0].clone();
 			let b = vertices[1].clone();
-			if a == C::zero() || b == C::zero() {
+			if a.abs2().sign() == 0  || b.abs2().sign() == 0 {
 				return true;
 			}
-			return cross_product(a.clone(), b.clone()) == C::Real::zero()
-				&& (a.re() * b.re() < C::Real::zero() || a.im() * b.im() < C::Real::zero())
+			return cross_product(a.clone(), b.clone()).sign() == 0
+				&& ((a.re() * b.re()).sign() == -1 || (a.im() * b.im()).sign() == -1)
 		} else {
 			let n = vertices.len();
 			let mut sign = 0;

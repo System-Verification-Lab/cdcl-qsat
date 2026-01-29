@@ -7,6 +7,8 @@ pub enum AngleId{
 	Phi(u16),
 }
 
+static MIN_DEPTH: u16 = 0;
+
 impl AngleId {
 	pub fn set<I>(self, vec: &mut Vec<(I, I)>) -> &mut I {
 		match self {
@@ -112,9 +114,10 @@ impl Assignment {
 
 	fn get_angles_depth(&self, qubits: &Vec<u16>, depths: &Vec<(u16, u16)>)
 	-> Vec<(AngleFraction, AngleFraction)> {
-		qubits.iter().zip(depths.iter())
+		let result = qubits.iter().zip(depths.iter())
 			.map(|(q, d)| self.get_qubit_angles(*q, Some(*d)))
-			.collect()
+			.collect();
+		result
 	}
 
 	pub fn fill(&mut self) -> bool {
@@ -180,12 +183,12 @@ impl Assignment {
 		for (q, depths) in support.iter().zip(depths.iter()) {
 			let q = *q;
 			let (theta_depth, phi_depth) = depths;
-			if *theta_depth > 0 {
-				let var = Variable { qubit: q, is_phi: false, depth: *theta_depth - 1 };
+			for d in 0..*theta_depth {
+				let var = Variable { qubit: q, is_phi: false, depth: d };
 				clause.push(var, !self.get(var).unwrap())
 			}
-			if *phi_depth > 0 {
-				let var = Variable { qubit: q, is_phi: true, depth: *phi_depth - 1 };
+			for d in 0..*phi_depth {
+				let var = Variable { qubit: q, is_phi: true, depth: d };
 				clause.push(var, !self.get(var).unwrap())
 			}
 		}
@@ -205,8 +208,7 @@ impl Assignment {
 			depths.push(depth);
 		}
 
-
-		can_move.retain(|item| item.get(&depths) > 0);
+		can_move.retain(|item| item.get(&depths) > MIN_DEPTH);
 
 		while !can_move.is_empty() {
 			let mut new_depths = depths.clone();
@@ -217,7 +219,7 @@ impl Assignment {
 				self.get_angles_depth(&constraint.support, &new_depths)
 			).is_unsat() {
 				depths = new_depths;
-				can_move.retain(|x| x.get(&depths) > 0);
+				can_move.retain(|x| x.get(&depths) > MIN_DEPTH);
 				continue;
 			} else {
 				can_move.sort_unstable_by(|a, b| b.get(&depths).cmp(&a.get(&depths)));
@@ -228,7 +230,7 @@ impl Assignment {
 					if constraint.check(
 						self.get_angles_depth(&constraint.support, &new_depths)
 					).is_unsat() {
-						if *item.set(&mut new_depths) > 0 {
+						if *item.set(&mut new_depths) > MIN_DEPTH {
 							new_can_move.push(item);
 						}
 						depths = new_depths;

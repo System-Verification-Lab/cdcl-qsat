@@ -19,8 +19,11 @@ pub fn combine<C: Complex>(a: &Vec<C>, b: &Vec<C>, weight: (u32, u32), phase: (u
 		C::Real::sin(phase.0 as usize, phase.1 as usize),
 	);
 	for i in 0..dim {
-		let next = (a[i].clone() * weight_a.clone() + b[i].clone() * weight_b.clone());
-		combined.push(next * phase.clone());
+		let next = (
+			a[i].clone() * weight_a.clone() * phase.clone()
+			+ b[i].clone() * weight_b.clone()
+		);
+		combined.push(next);
 	}
 	combined
 }
@@ -32,7 +35,7 @@ use rand::Rng;
 use rand_chacha::ChaCha8Rng;
 
 pub fn random_state<C: Complex>(
-	num_qubits: u16, num_amplitudes: u32, max_denominator: u32, seed: u64)
+	num_qubits: u16, num_amplitudes: u32, max_denominator: u32, seed: u64, always_max_den: bool)
  -> Vec<C> {
 	// Choose `num_amplitudes` random basis states (0..2^numqubits) and store them in `states`.
 	let dim = 1 << num_qubits;
@@ -52,12 +55,11 @@ pub fn random_state<C: Complex>(
 	let mut angles = Vec::with_capacity(num_amplitudes.saturating_sub(1) as usize);
 	let mut phase_angles = Vec::with_capacity(num_amplitudes.saturating_sub(1) as usize);
 	for _ in 0..num_amplitudes.saturating_sub(1) {
-		let den = rng.gen_range(1..=max_denominator);
+		let den = if always_max_den { max_denominator } else { rng.gen_range(1..=max_denominator) };
 		let num = rng.gen_range(0..den);
 		angles.push((num, den));
 
-
-		let den = rng.gen_range(1..=max_denominator);
+		let den = if always_max_den { max_denominator } else { rng.gen_range(1..=max_denominator) };
 		let num = rng.gen_range(0..den);
 		phase_angles.push((num, den));
 	}
