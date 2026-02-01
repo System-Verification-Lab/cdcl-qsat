@@ -66,20 +66,6 @@ impl <C: Complex> QsatInstance<C> {
 		self.promise_min_sat = Some(promise);
 	}
 
-	pub fn check_sat(&self, result: QsatResult<C>) -> QsatResult<C> {
-		match result {
-			QsatResult::Maybe(data) => {
-				if let Some(promise) = &self.promise_min_sat
-				&& C::Real::int(self.num_qubits.into()) * data.max_mod2.clone() < *promise {
-					QsatResult::Sat
-				} else {
-					QsatResult::Maybe(data)
-				}
-			}
-			_ => { result }
-		}
-	}
-
 	#[allow(dead_code)]
 	fn constraints_involving(&self, qubit: u16) -> Vec<usize> {
 		let mut result = Vec::new();
@@ -150,7 +136,8 @@ pub fn solve<C: Complex>(instance: QsatInstance<C>) -> QsatResult<C> {
 		assignment.update_from_solver(&solver);
 	};
 
-	instance.check_sat(result)
+	result
+
 }
 
 #[cfg(test)]

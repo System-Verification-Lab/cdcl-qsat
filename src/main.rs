@@ -12,20 +12,32 @@ use numbers::{ComplexFloat, ExactComplex};
 use projectors::{random_state, random_support};
 use solver::{QsatInstance, solve, QsatResult};
 
-type NumberType = ComplexFloat;
+
+// Basic usage:
+// - Choose a numeric type (float or exact), with NumberType.
+// - Build a QSAT instance with a qubit count and search depth.
+// - Add constraints as (support, projector) pairs.
+// - Call `solve`` and inspect the result.
+
+type NumberType = ComplexFloat; // or ComplexExact
 
 fn main() {
+	// Problem parameters.
 	let num_qubits = 3;
 	let k = 3;
 	let num_constraints = 4;
 	let search_depth = 8;
 
-	let mut instance = QsatInstance::<ComplexFloat>::new(num_qubits, search_depth);
+	// Create a new QSAT instance with the chosen numeric type.
+	let mut instance = QsatInstance::<NumberType>::new(num_qubits, search_depth);
 
 	let seed = 42;
 	let max_denominator = 1 << (search_depth);
 	let num_amplitudes = 1 << k;
 
+	// Each constraint is passed as a (support, projector) pair.
+	// - `support` identifies the qubits involved
+	// - `projector` contains the complex conjugate of 2^k amplitudes of the projector state.
 	for i in 0..num_constraints {
 		let random_support = random_support(num_qubits, k, seed + 7 * i);
 		let random_state = random_state::<NumberType>(
@@ -35,7 +47,7 @@ fn main() {
 		instance.add_constraint(random_support, random_state);
 	}
 
+	// Solve and check the outcome.
 	let result = solve(instance);
 	println!("Result: {:?}", result);
 }
-
