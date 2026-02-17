@@ -6,6 +6,14 @@ pub use float::{Float, ComplexFloat, f, cf};
 pub use exact::{ExactReal, ExactComplex};
 
 
+pub trait TrigonometricHelper<R>: Clone + Debug {
+	fn new(denominator: usize) -> Self;
+	fn denominator(&self) -> usize;
+	fn cos(&self, numerator: usize, denominator: usize) -> R;
+	fn sin(&self, numerator: usize, denominator: usize) -> R;
+}
+
+
 pub trait Real: Clone + Debug + PartialEq + Ord
 + Add<Output = Self> + Mul<Output = Self> + Sub<Output = Self>
 + Div<Output = Self> + Neg<Output = Self> {
@@ -55,6 +63,15 @@ pub trait Complex: Clone + Debug + PartialEq
 
 	fn abs2(&self) -> Self::Real {
 		self.re().clone() * self.re().clone() + self.im().clone() * self.im().clone()
+	}
+	fn dir(angle_num: usize, angle_den: usize) -> Self {
+		Self::raw(
+			Self::Real::cos(angle_num, angle_den),
+			Self::Real::sin(angle_num, angle_den)
+		)
+	}
+	fn polar(r: Self::Real, dir: Self) -> Self {
+		Self::from_real(r) * dir
 	}
 }
 

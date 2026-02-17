@@ -2,13 +2,16 @@ use ordered_float::OrderedFloat;
 use std::f64::consts::PI;
 use std::ops::{Add, Div, Mul, Sub, Neg};
 
-use super::{Real, Complex};
+use super::{Complex, Real, TrigonometricHelper};
 
 const EPS: f64 = 1e-12;
 
 // Real float
 pub type Float = OrderedFloat<f64>;
+
+
 impl Real for Float {
+
 	fn zero() -> Self {
 		OrderedFloat(0.0)
 	}

@@ -6,7 +6,7 @@ use rug::float::Round;
 use rug::ops::{AddAssignRound, DivAssignRound, MulAssignRound};
 use rug::{Float, Integer};
 
-use super::{Complex, Real};
+use super::{Complex, Real, TrigonometricHelper};
 
 #[derive(Clone, PartialEq, Eq, Debug)]
 struct Rational {
@@ -410,6 +410,7 @@ impl<const K: usize> Ord for ExactReal<K> {
 }
 
 impl<const K: usize> Real for ExactReal<K> {
+
 	fn zero() -> Self {
 		ExactReal(Cyclotomic::zero())
 	}

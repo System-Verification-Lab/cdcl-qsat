@@ -1,4 +1,5 @@
 use crate::{Complex, Real};
+use crate::numbers::TrigonometricHelper;
 
 pub fn computational<C: Complex>(element: u16, num_qubits: u16) -> Vec<C> {
 	let dim = 1 << num_qubits;
@@ -37,6 +38,7 @@ use rand_chacha::ChaCha8Rng;
 pub fn random_state<C: Complex>(
 	num_qubits: u16, num_amplitudes: u32, max_denominator: u32, seed: u64, always_max_den: bool)
  -> Vec<C> {
+	assert!(max_denominator > 0, "max_denominator must be positive");
 	// Choose `num_amplitudes` random basis states (0..2^numqubits) and store them in `states`.
 	let dim = 1 << num_qubits;
 	assert!(num_amplitudes <= dim as u32);

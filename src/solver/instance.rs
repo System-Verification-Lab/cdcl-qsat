@@ -1,6 +1,9 @@
-use crate::{Real, Complex};
+use crate::{Complex, Real, solver::instance};
 use super::{Constraint, Variable, Assignment, ConstraintLearning, Clause};
 use batsat::{Solver, SolverOpts, BasicCallbacks, lbool, SolverInterface};
+use cpu_time::{ProcessTime};
+use std::time::Duration;
+
 
 #[derive(Debug, Clone)]
 pub struct MaybeData<C: Complex> {
@@ -28,6 +31,15 @@ pub enum QsatResult<C: Complex> {
 	Sat,
 	Unsat,
 	Maybe(MaybeData<C>),
+}
+
+#[derive(Debug, Clone)]
+pub struct QsatDiagnosis<C: Complex> {
+	pub result: QsatResult<C>,
+	pub execution_time: Duration,
+	pub num_vars: usize,
+	pub num_calls_solver: usize,
+	pub num_clauses: usize,
 }
 
 #[derive(Debug, Clone)]
@@ -85,11 +97,11 @@ impl <C: Complex> QsatInstance<C> {
 		Assignment::new(self.num_qubits, self.max_depth)
 	}
 
-	fn learn(&self, assignment: Assignment) -> TheoryResult<C> {
+	fn learn(&self, assignment: Assignment, num_calls_solver: &mut usize) -> TheoryResult<C> {
 		let mut maybes = Vec::new();
 		let mut conflicts = Vec::new();
 		for c in &self.constraints {
-			let result = assignment.find_conflict(c, true);
+			let result = assignment.find_conflict(c, true, num_calls_solver);
 			match result {
 				ConstraintLearning::Maybe(data) => {maybes.push(data);},
 				ConstraintLearning::Conflict(clause) => {conflicts.push(clause);},
@@ -106,6 +118,10 @@ impl <C: Complex> QsatInstance<C> {
 }
 
 pub fn solve<C: Complex>(instance: QsatInstance<C>) -> QsatResult<C> {
+	solve_diagnostic(instance).result
+}
+
+pub fn solve_diagnostic<C: Complex>(instance: QsatInstance<C>) -> QsatDiagnosis<C> {
 	let mut solver = Solver::new(SolverOpts::default(), BasicCallbacks::new());
 	let mut assignment = instance.assignment();
 	for i in 0..instance.num_vars() {
@@ -114,10 +130,14 @@ pub fn solve<C: Complex>(instance: QsatInstance<C>) -> QsatResult<C> {
 	}
 	debug_assert!(solver.num_vars() == instance.num_vars());
 
+	let start = ProcessTime::now();
+
+	let mut num_calls_solver = 0;
+
 	let result = loop {
 		let mut temp_assignment = assignment.clone();
 		temp_assignment.fill();
-		match instance.learn(temp_assignment) {
+		match instance.learn(temp_assignment, &mut num_calls_solver) {
 			TheoryResult::Maybe(maybes) => {
 				let data = MaybeData::merge(maybes);
 				break QsatResult::Maybe(data);
@@ -136,8 +156,15 @@ pub fn solve<C: Complex>(instance: QsatInstance<C>) -> QsatResult<C> {
 		assignment.update_from_solver(&solver);
 	};
 
-	result
+	let duration = start.elapsed();
 
+	QsatDiagnosis {
+		result,
+		execution_time: duration,
+		num_vars: instance.num_vars() as usize,
+		num_calls_solver: num_calls_solver,
+		num_clauses: solver.num_clauses() as usize,
+	}
 }
 
 #[cfg(test)]

@@ -1,6 +1,8 @@
 use crate::numbers::{Complex, Real};
+use crate::numbers::TrigonometricHelper;
 use super::ConvexPolygon;
-use super::minkowski::{convex_minkowski_product, minkowski_sum};
+use super::minkowski::{minkowski_sum};
+use super::annular::{AnnularSection, minkowski_product};
 use crate::MaybeData;
 
 use std::fmt::Debug;
@@ -32,8 +34,11 @@ impl AngleFraction {
 	}
 }
 
-pub(super) fn basic_polygons<C: Complex>(theta: AngleFraction, phi: AngleFraction)
--> [ConvexPolygon<C>; 2]
+pub(super) fn annular_sections<C: Complex>(
+	theta: AngleFraction,
+	phi: AngleFraction,
+)
+-> [AnnularSection<C>; 2]
 {
 	if !theta.smaller_one() || !phi.smaller_one() {
 		panic!("Angles must be less than 1");
@@ -42,52 +47,20 @@ pub(super) fn basic_polygons<C: Complex>(theta: AngleFraction, phi: AngleFractio
 	let theta = theta.half();
 
 	// Theta sines/cosines.
-	let cos_t0 = C::Real::cos(theta.numerator, theta.denominator);
-	let cos_t1 = C::Real::cos(theta.numerator + 1, theta.denominator);
+	let cos_t0 = C::Real::cos(theta.numerator + 1, theta.denominator);
+	let cos_t1 = C::Real::cos(theta.numerator, theta.denominator);
 
-	let interval = ConvexPolygon::<C>::new(vec![C::from_real(cos_t0), C::from_real(cos_t1)]);
-
-
-	let r0 = C::Real::sin(theta.numerator, theta.denominator);
+	
 	let r1 = C::Real::sin(theta.numerator + 1, theta.denominator);
+	let r0 = C::Real::sin(theta.numerator, theta.denominator);
 
-	// Phi sines/cosines, doubling the resolution to find the mid angle.
+	let interval = AnnularSection::<C>::segment(cos_t0, cos_t1);
+	let annulus = AnnularSection::<C>::from_angle_bounds(
+		r0, r1,
+		phi.numerator, phi.numerator + 1, phi.denominator
+	);
 
-	let phi = phi.scale(2);
-
-	if phi.denominator <= 4 {
-		let annulus = ConvexPolygon::<C>::new(vec![
-			C::raw(r1.clone(), r1.clone()),
-			C::raw(r1.clone(), -r1.clone()),
-			C::raw(-r1.clone(), -r1.clone()),
-			C::raw(-r1.clone(), r1.clone())
-		]);
-		debug_assert!(annulus.contains_zero());
-		return [interval, annulus];
-	}
-
-	let cos_p0 = C::Real::cos(phi.numerator, phi.denominator);
-	let cos_p1 = C::Real::cos(phi.numerator + 2, phi.denominator);
-	let sin_p0 = C::Real::sin(phi.numerator, phi.denominator);
-	let sin_p1 = C::Real::sin(phi.numerator + 2, phi.denominator);
-
-	let cos_pmid = C::Real::cos(phi.numerator + 1, phi.denominator);
-	let sin_pmid = C::Real::sin(phi.numerator + 1, phi.denominator);
-
-	let cos_pdelta = C::Real::cos(1, phi.denominator);
-
-	// Build polygons.
-	let a = C::from_real(r1.clone()) * C::raw(cos_pmid.clone(), sin_pmid.clone());
-	let a = a / C::from_real(cos_pdelta.clone());
-
-	let b = C::from_real(r1.clone()) * C::raw(cos_p0.clone(), sin_p0.clone());
-	let c = C::from_real(r0.clone()) * C::raw(cos_p0.clone(), sin_p0.clone());
-	let d = C::from_real(r0.clone()) * C::raw(cos_p1.clone(), sin_p1.clone());
-	let e = C::from_real(r1.clone()) * C::raw(cos_p1.clone(), sin_p1.clone());
-
-	let annulus = ConvexPolygon::<C>::new(vec![a, b, c, d, e]);
 	[interval, annulus]
-
 }
 
 
@@ -108,26 +81,31 @@ impl<C: Complex> ConstraintResult<C> {
 
 
 pub fn poly_check_constraint<C: Complex>(
-	projector: &Vec<C>, angle_limits: Vec<(AngleFraction, AngleFraction)>
+	projector: &Vec<C>,
+	angle_limits: Vec<(AngleFraction, AngleFraction)>,
 ) -> (ConstraintResult<C>, ConvexPolygon<C>) {
 
 	let n = angle_limits.len();
 	let space_dim = projector.len();
 	assert_eq!(space_dim, 2usize.pow(n as u32));
 
-	let polygons: Vec<[ConvexPolygon<C>; 2]> = angle_limits.into_iter()
-		.map(|(theta, phi)| basic_polygons::<C>(theta, phi))
+	let sections: Vec<[AnnularSection<C>; 2]> = angle_limits.into_iter()
+		.map(|(theta, phi)| annular_sections::<C>(theta, phi))
 		.collect();
 
 	let mut summands = Vec::<ConvexPolygon<C>>::with_capacity(space_dim);
 	for (i, coeff) in projector.into_iter().enumerate() {
-		let poly = polygons
+		let section = sections 
 			.iter().enumerate()
 			// We use `i >> pos`` because we can equivalently reverse all projectors.
-			.map(|(pos, polygons)| polygons[(i >> pos) & 1].clone())
-			.reduce(|a, b| convex_minkowski_product(a, b))
+			.map(|(pos, sections)| sections[(i >> pos) & 1].clone())
+			.reduce(|a, b| minkowski_product(&a, &b))
 			.unwrap();
-		summands.push(poly.scale(coeff.clone()));
+		summands.push(
+			section
+				.enclosing_polygon()
+				.scale(coeff.clone())
+		);
 	}
 	let final_cover = summands.into_iter().reduce(|a, b| minkowski_sum(a, b)).unwrap();
 
@@ -141,7 +119,8 @@ pub fn poly_check_constraint<C: Complex>(
 }
 
 pub fn check_constraint<C: Complex>(
-	projector: &Vec<C>, angle_limits: Vec<(AngleFraction, AngleFraction)>
+	projector: &Vec<C>,
+	angle_limits: Vec<(AngleFraction, AngleFraction)>,
 ) -> ConstraintResult<C> {
 	let (result, _poly) = poly_check_constraint::<C>(projector, angle_limits);
 	result
@@ -159,10 +138,10 @@ mod tests {
 		projector[0] = cf(1./2f64.sqrt(), 0.0);
 		projector[7] = cf(-1./2f64.sqrt(), 0.0);
 
-		let resolution = 10;
+		let resolution = 16;
 		let sat_angles = vec![
 			(AngleFraction::new(0, resolution), AngleFraction::new(0,resolution)),
-			(AngleFraction::new(resolution/2, resolution), AngleFraction::new(0,resolution)),
+			(AngleFraction::new(resolution/2 - 1, resolution), AngleFraction::new(0,resolution)),
 			(AngleFraction::new(0, resolution), AngleFraction::new(0,resolution)),
 		];
 
@@ -172,8 +151,8 @@ mod tests {
 			(AngleFraction::new(0, resolution), AngleFraction::new(0,resolution)),
 		];
 
-		let (sat, _) = poly_check_constraint(&projector, sat_angles);
-		let (unsat, _) = poly_check_constraint(&projector, unsat_angles);
+		let (sat, _) = poly_check_constraint(&projector, sat_angles,);
+		let (unsat, _) = poly_check_constraint(&projector, unsat_angles,);
 		
 
 		assert!(matches!(sat, ConstraintResult::Maybe { .. }));

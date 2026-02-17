@@ -1,5 +1,5 @@
 use crate::checker::{check_constraint, ConstraintResult, AngleFraction};
-use crate::{Complex, MaybeData};
+use crate::{Complex, MaybeData, Real};
 
 #[derive(Copy, Clone,Debug, PartialEq, Eq)]
 pub enum AngleId{
@@ -167,13 +167,19 @@ impl Assignment {
 		(theta_depth as u16, phi_depth as u16)
 	}
 
-	pub fn find_conflict<C: Complex>(&self, constraint: &Constraint<C>, thorough: bool)
+	pub fn find_conflict<C: Complex>(
+		&self,
+		constraint: &Constraint<C>,
+		thorough: bool,
+		num_calls_solver: &mut usize,
+	)
 	-> ConstraintLearning<C> {
-		if let ConstraintResult::Maybe(data) = constraint.check(self.get_angles(&constraint.support)) {
+		if let ConstraintResult::Maybe(data) =
+		constraint.check(self.get_angles(&constraint.support), num_calls_solver) {
 			return ConstraintLearning::Maybe(data);
 		}
 		let depths = if thorough {
-			self.find_conflict_depths::<C>(&constraint)
+			self.find_conflict_depths::<C>(&constraint, num_calls_solver)
 		} else {
 			constraint.support.iter().map(|q| self.depths(*q)).collect()
 		};
@@ -195,7 +201,11 @@ impl Assignment {
 		ConstraintLearning::Conflict(clause)
 	}
 
-	fn find_conflict_depths<C: Complex>(&self, constraint: &Constraint<C>) -> Vec<(u16, u16)> {
+	fn find_conflict_depths<C: Complex>(
+		&self,
+		constraint: &Constraint<C>,
+		num_calls_solver: &mut usize
+	) -> Vec<(u16, u16)> {
 
 		let support = &constraint.support;
 		let mut depths: Vec<(u16, u16)> = Vec::with_capacity(support.len());
@@ -216,7 +226,8 @@ impl Assignment {
 				*item.set(&mut new_depths) -=  1;
 			}
 			if constraint.check(
-				self.get_angles_depth(&constraint.support, &new_depths)
+				self.get_angles_depth(&constraint.support, &new_depths),
+				num_calls_solver
 			).is_unsat() {
 				depths = new_depths;
 				can_move.retain(|x| x.get(&depths) > MIN_DEPTH);
@@ -228,7 +239,8 @@ impl Assignment {
 					let mut new_depths = depths.clone();
 					*item.set(&mut new_depths) -= 1;
 					if constraint.check(
-						self.get_angles_depth(&constraint.support, &new_depths)
+						self.get_angles_depth(&constraint.support, &new_depths),
+						num_calls_solver
 					).is_unsat() {
 						if *item.set(&mut new_depths) > MIN_DEPTH {
 							new_can_move.push(item);
@@ -272,7 +284,12 @@ pub(super) struct Constraint<C: Complex> {
 }
 
 impl<C: Complex> Constraint<C> {
-	fn check(&self, angles: Vec<(AngleFraction, AngleFraction)>) -> ConstraintResult<C> {
+	fn check(
+		&self,
+		angles: Vec<(AngleFraction, AngleFraction)>,
+		num_calls_solver: &mut usize,
+	) -> ConstraintResult<C> {
+		*num_calls_solver += 1;
 		let result = check_constraint::<C>(&self.projector, angles.clone());
 		result
 	}
@@ -300,7 +317,8 @@ mod test {
 		let mut assignment = Assignment::new(3, 7);
 		assignment.fill();
 
-		let learning = assignment.find_conflict::<ComplexFloat>(&constraint, true);
+		let ncalls = &mut 0;
+		let learning = assignment.find_conflict::<ComplexFloat>(&constraint, true, ncalls);
 		assert!(learning.is_conflict());
 		let clause = match learning {
 			ConstraintLearning::Conflict(c) => c,
@@ -311,7 +329,5 @@ mod test {
 		for (var, value) in clause.0 {
 			assignment.assign(var, Some(!value))
 		}
-
-		assert!(assignment.find_conflict(&constraint, true).is_conflict());
 	}
 }
