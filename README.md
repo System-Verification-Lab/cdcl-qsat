@@ -7,7 +7,7 @@ Prototype implementation of a sound refuter for product-state satisfiability in 
 Run the example in `src/main.rs`:
 
 ```bash
-cargo run
+cargo run --release
 ```
 
 The `main.rs` example shows how to:

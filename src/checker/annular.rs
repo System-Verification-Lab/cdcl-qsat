@@ -146,12 +146,13 @@ impl<C: Complex> AnnularSection<C> {
 	) -> ConvexPolygon<C> {
 		let num = self.angles.span_numerator();
 		let den = self.angles.denominator();
+		let factor = 4;
 		let auto_segments = {
-			if num > den / 2 { 32 }
-			else if num > den / 4 { 16 }
-			else if num > den / 8 { 8 }
-			else if num > den / 16 { 4 }
-			else { 2 }
+			if num > den / 2 { 16 * factor}
+			else if num > den / 4 { 8 * factor}
+			else if num > den / 8 { 4 * factor}
+			else if num > den / 16 { 2 * factor}
+			else { 1 * factor }
 		};
 		let auto_segments = auto_segments.max(1);
 		self.enclosing_polygon_with_segments(auto_segments)

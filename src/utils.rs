@@ -35,7 +35,7 @@ pub fn benchmark() {
 
 	println!("num_qubits, num_constraints, unprodsat, time, num_calls_solver, num_clauses, num_vars");
 
-	for num_qubits in 3..7 {
+	for num_qubits in 6..11 {
 		let mut results_tmp = Vec::new();
 		for num_constraints in 1..(num_qubits+2) {
 			let mut unsat_count = 0;

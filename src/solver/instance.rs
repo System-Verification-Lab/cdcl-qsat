@@ -1,8 +1,13 @@
 use crate::{Complex, Real, solver::instance};
 use super::{Constraint, Variable, Assignment, ConstraintLearning, Clause};
-use batsat::{Solver, SolverOpts, BasicCallbacks, lbool, SolverInterface};
 use cpu_time::{ProcessTime};
+use rustsat::solvers::{Solve, SolveStats, SolverResult};
+use rustsat::types::{Lit, TernaryVal, Var};
+use rustsat_batsat::BasicSolver as BatSat;
+use rustsat_cadical::CaDiCaL;
+use rustsat_glucose::core::Glucose;
 use std::time::Duration;
+use std::marker::PhantomData;
 
 
 #[derive(Debug, Clone)]
@@ -42,6 +47,38 @@ pub struct QsatDiagnosis<C: Complex> {
 	pub num_clauses: usize,
 }
 
+pub trait AbstractSatSolver: Solve + Default + SolveStats {
+	fn clause_count(&self) -> usize;
+	fn label(&self) -> &'static str;
+}
+
+impl AbstractSatSolver for CaDiCaL<'static, 'static> {
+	fn clause_count(&self) -> usize {
+		self.n_clauses()
+	}
+	fn label(&self) -> &'static str {
+		"CaDiCaL"
+	}
+}
+
+impl AbstractSatSolver for BatSat {
+	fn clause_count(&self) -> usize {
+		self.n_clauses()
+	}
+	fn label(&self) -> &'static str {
+		"BatSat"
+	}
+}
+
+impl AbstractSatSolver for Glucose {
+	fn clause_count(&self) -> usize {
+		self.n_clauses()
+	}
+	fn label(&self) -> &'static str {
+		"Glucose"
+	}
+}
+
 #[derive(Debug, Clone)]
 pub(super) enum TheoryResult<C: Complex> {
 	Maybe(Vec<MaybeData<C>>),
@@ -49,20 +86,22 @@ pub(super) enum TheoryResult<C: Complex> {
 }
 
 #[derive(Debug)]
-pub struct QsatInstance<C: Complex> {
+pub struct QsatInstance<C: Complex, SatSolver: AbstractSatSolver = Glucose> {
 	num_qubits: u16,
 	max_depth: u16,
 	promise_min_sat: Option<C::Real>,
 	constraints: Vec<Constraint<C>>,
+	sat: PhantomData<SatSolver>,
 }
 
-impl <C: Complex> QsatInstance<C> {
+impl <C: Complex, S: AbstractSatSolver> QsatInstance<C, S> {
 	pub fn new(num_qubits: u16, max_depth: u16,) -> Self {
 		QsatInstance {
 			num_qubits,
 			max_depth,
 			constraints: Vec::new(),
 			promise_min_sat: None,
+			sat: PhantomData,
 		}
 	}
 
@@ -117,18 +156,19 @@ impl <C: Complex> QsatInstance<C> {
 
 }
 
-pub fn solve<C: Complex>(instance: QsatInstance<C>) -> QsatResult<C> {
+pub fn solve<C: Complex, S: AbstractSatSolver>(instance: QsatInstance<C, S>) -> QsatResult<C> {
 	solve_diagnostic(instance).result
 }
 
-pub fn solve_diagnostic<C: Complex>(instance: QsatInstance<C>) -> QsatDiagnosis<C> {
-	let mut solver = Solver::new(SolverOpts::default(), BasicCallbacks::new());
+pub fn solve_diagnostic<C: Complex, S: AbstractSatSolver>(
+	instance: QsatInstance<C, S>
+) -> QsatDiagnosis<C> {
+	let mut solver = S::default();
 	let mut assignment = instance.assignment();
-	for i in 0..instance.num_vars() {
-		let v = solver.new_var(lbool::TRUE, true);
-		assert!(v.idx() == i);
+	if instance.num_vars() > 0 {
+		solver.reserve(Var::new(instance.num_vars() - 1))
+			.unwrap_or_else(|_| panic!("failed to reserve variables in {}", solver.label()));
 	}
-	debug_assert!(solver.num_vars() == instance.num_vars());
 
 	let start = ProcessTime::now();
 
@@ -144,16 +184,20 @@ pub fn solve_diagnostic<C: Complex>(instance: QsatInstance<C>) -> QsatDiagnosis<
 			}
 			TheoryResult::Conflict(clauses) => {
 				for clause in clauses {
-					let mut sat_clause = clause.to_sat_clause(instance.num_qubits);
-					solver.add_clause_reuse(&mut sat_clause);
+					let sat_clause = clause.to_sat_clause(instance.num_qubits);
+					solver.add_clause(sat_clause)
+						.unwrap_or_else(|_| panic!("failed to add clause to {}", solver.label()));
 				}
 			}
 		}
-
-		if solver.solve_limited(&[]) == lbool::FALSE {
-			break QsatResult::Unsat;
+		match solver.solve().unwrap_or_else(|_| panic!("{} solve failed", solver.label())) {
+			SolverResult::Unsat => {
+				break QsatResult::Unsat;
+			}
+			SolverResult::Sat => {}
+			SolverResult::Interrupted => panic!("{} solve was interrupted", solver.label()),
 		}
-		assignment.update_from_solver(&solver);
+		assignment.update_from_solver(&solver, instance.num_vars());
 	};
 
 	let duration = start.elapsed();
@@ -163,24 +207,42 @@ pub fn solve_diagnostic<C: Complex>(instance: QsatInstance<C>) -> QsatDiagnosis<
 		execution_time: duration,
 		num_vars: instance.num_vars() as usize,
 		num_calls_solver: num_calls_solver,
-		num_clauses: solver.num_clauses() as usize,
+		num_clauses: solver.clause_count(),
 	}
 }
 
 #[cfg(test)]
 mod test {
 	use super::*;
-	use batsat::Lit;
+	use rustsat::solvers::{Solve, SolverResult};
+	use rustsat::types::{Lit, TernaryVal, Var};
+	use rustsat_batsat::BasicSolver as BatSat;
+	use rustsat_cadical::CaDiCaL;
+	use rustsat_glucose::core::Glucose;
+
+	fn test_cdcl_signs_impl<S: Solve + Default>() {
+		let mut solver = S::default();
+		let var = Var::new(0);
+		let lit = Lit::positive(0);
+		let clause: rustsat::types::Clause = vec![lit].into_iter().collect();
+		solver.add_clause(clause).expect("failed to add unit clause");
+		let result = solver.solve().expect("solve failed");
+		assert!(matches!(result, SolverResult::Sat));
+		assert_eq!(solver.var_val(var).expect("failed to read value"), TernaryVal::True);
+	}
+
 	#[test]
-	fn test_cdcl_signs() {
-		let mut solver = Solver::new(SolverOpts::default(), BasicCallbacks::new());
-		let var = solver.new_var_default();
-		let lit = Lit::new(var, true);
-		let mut clause = vec![lit];
-		solver.add_clause_reuse(&mut clause);
-		let result = solver.solve_limited(&[]);
-		for (var_idx, val) in solver.get_model().iter().enumerate(){
-			assert_eq!(lbool::TRUE, *val);
-		}
+	fn test_cdcl_signs_cadical() {
+		test_cdcl_signs_impl::<CaDiCaL<'static, 'static>>();
+	}
+
+	#[test]
+	fn test_cdcl_signs_batsat() {
+		test_cdcl_signs_impl::<BatSat>();
+	}
+
+	#[test]
+	fn test_cdcl_signs_glucose() {
+		test_cdcl_signs_impl::<Glucose>();
 	}
 }

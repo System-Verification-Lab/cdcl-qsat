@@ -8,18 +8,18 @@ pub use numbers::{Real, Complex, cross_product, f, cf};
 pub use solver::{MaybeData};
 
 
-use numbers::{ComplexFloat, ExactComplex};
+use numbers::{ComplexFloat};
 use projectors::{random_state, random_support};
-use solver::{QsatInstance, solve, QsatResult};
+use solver::{QsatInstance, solve, QsatResult, Glucose};
 
 
 // Basic usage:
-// - Choose a numeric type (float or exact), with NumberType.
 // - Build a QSAT instance with a qubit count and search depth.
 // - Add constraints as (support, projector) pairs.
 // - Call `solve`` and inspect the result.
 
-type NumberType = ComplexFloat; // or ComplexExact
+type NumberType = ComplexFloat;
+type SatSolver = Glucose;
 
 fn main() {
 	// Problem parameters.
@@ -29,7 +29,7 @@ fn main() {
 	let search_depth = 8;
 
 	// Create a new QSAT instance with the chosen numeric type.
-	let mut instance = QsatInstance::<NumberType>::new(num_qubits, search_depth);
+	let mut instance = QsatInstance::<NumberType, SatSolver>::new(num_qubits, search_depth);
 
 	let seed = 42;
 	let max_denominator = 1 << (search_depth);

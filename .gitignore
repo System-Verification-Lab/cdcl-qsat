@@ -1,3 +1,7 @@
 /target
 script.py
+process.py
 __pycache__
+*.csv
+*.pdf
+*.png

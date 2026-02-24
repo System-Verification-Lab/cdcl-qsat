@@ -3,9 +3,18 @@ name = "qsat"
 version = "0.1.0"
 edition = "2024"
 
+[profile.release]
+opt-level = 3
+lto = "fat"
+codegen-units = 1
+panic = "abort"
+
 [dependencies]
 ordered-float = "5.1.0"
-batsat = "0.6.0"
+rustsat = "0.7.5"
+rustsat-batsat = "0.7.5"
+rustsat-cadical = "0.7.5"
+rustsat-glucose = "0.7.5"
 rand = "0.8.5"
 rand_chacha = "0.3.1"
 cpu-time = "1.0.0"
