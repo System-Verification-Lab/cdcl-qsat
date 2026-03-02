@@ -33,9 +33,9 @@ pub fn benchmark() {
 	let k = 3;
 	let depth = 8;
 
-	println!("num_qubits, num_constraints, unprodsat, time, num_calls_solver, num_clauses, num_vars");
+	println!("num_qubits, num_constraints, unprodsat, time, num_calls_solver, num_clauses, num_cdcl_constraints, num_vars");
 
-	for num_qubits in 6..11 {
+	for num_qubits in 3..6 {
 		let mut results_tmp = Vec::new();
 		for num_constraints in 1..(num_qubits+2) {
 			let mut unsat_count = 0;
@@ -49,8 +49,8 @@ pub fn benchmark() {
 				if is_unsat {
 					unsat_count += 1;
 				}
-				println!("{}, {}, {}, {}, {}, {}, {}",
-					num_qubits, num_constraints, is_unsat as u16, time.as_secs_f64(), diagnosis.num_calls_solver, diagnosis.num_clauses, num_vars);
+				println!("{}, {}, {}, {}, {}, {}, {}, {}",
+					num_qubits, num_constraints, is_unsat as u16, time.as_secs_f64(), diagnosis.num_calls_solver, diagnosis.num_clauses, diagnosis.num_cdcl_constraints.unwrap_or(0), num_vars);
 				
 			}
 			results_tmp.push(unsat_count);

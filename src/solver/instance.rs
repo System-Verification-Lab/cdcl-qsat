@@ -45,11 +45,15 @@ pub struct QsatDiagnosis<C: Complex> {
 	pub num_vars: usize,
 	pub num_calls_solver: usize,
 	pub num_clauses: usize,
+	pub num_cdcl_constraints: Option<usize>,
 }
 
 pub trait AbstractSatSolver: Solve + Default + SolveStats {
 	fn clause_count(&self) -> usize;
 	fn label(&self) -> &'static str;
+	fn cdcl_constraints(&self) -> Option<usize> {
+		None
+	}
 }
 
 impl AbstractSatSolver for CaDiCaL<'static, 'static> {
@@ -76,6 +80,9 @@ impl AbstractSatSolver for Glucose {
 	}
 	fn label(&self) -> &'static str {
 		"Glucose"
+	}
+	fn cdcl_constraints(&self) -> Option<usize> {
+		Some(self.n_learnts() as usize)
 	}
 }
 
@@ -208,6 +215,7 @@ pub fn solve_diagnostic<C: Complex, S: AbstractSatSolver>(
 		num_vars: instance.num_vars() as usize,
 		num_calls_solver: num_calls_solver,
 		num_clauses: solver.clause_count(),
+		num_cdcl_constraints: solver.cdcl_constraints(),
 	}
 }
 
