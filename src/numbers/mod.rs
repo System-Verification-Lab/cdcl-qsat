@@ -1,80 +1,110 @@
-mod float;
 mod exact;
+mod float;
+pub use float::{
+    cf, ComplexFloat, Float, f
+};
 use std::fmt::Debug;
-use std::ops::{Add, Div, Mul, Sub, Neg};
-pub use float::{Float, ComplexFloat, f, cf};
-pub use exact::{ExactReal, ExactComplex};
+use std::ops::{Add, Div, Mul, Neg, Sub};
 
-
-pub trait TrigonometricHelper<R>: Clone + Debug {
-	fn new(denominator: usize) -> Self;
-	fn denominator(&self) -> usize;
-	fn cos(&self, numerator: usize, denominator: usize) -> R;
-	fn sin(&self, numerator: usize, denominator: usize) -> R;
-}
-
-
-pub trait Real: Clone + Debug + PartialEq + Ord
-+ Add<Output = Self> + Mul<Output = Self> + Sub<Output = Self>
-+ Div<Output = Self> + Neg<Output = Self> {
-	fn zero() -> Self;
-	fn int(from: usize) -> Self;
-	fn sign(&self) -> i8 {
-		if *self > Self::zero() {
-			1
-		} else if *self < Self::zero() {
-			-1
-		} else {
-			0
-		}
-	}
-	fn abs(self) -> Self {
-		if self.sign() > 0 {
-			self
-		} else if self.sign() == 0 {
-			Self::zero()
-		} else {
-			-self
-		}
-	}
-	fn cos(numerator: usize, denominator: usize) -> Self;
-	fn sin(numerator: usize, denominator: usize) -> Self;
-	fn to_float(&self) -> f64;
-}
-
-pub trait Complex: Clone + Debug + PartialEq
-+ Add<Output = Self> + Mul<Output = Self> + Sub<Output = Self>
-+ Div<Output = Self> + Neg<Output = Self>
+pub trait Real:
+    Clone + Debug + Eq + Ord
+    + Add<Output = Self>
+    + Mul<Output = Self>
+    + Sub<Output = Self>
+    + Div<Output = Self>
+    + Neg<Output = Self>
 {
-	type Real: Real;
-	fn re(&self) -> Self::Real;
-	fn im(&self) -> Self::Real;
-	fn raw(re: Self::Real, im: Self::Real) -> Self;
-	fn zero() -> Self {
-		Self::raw(Self::Real::zero(), Self::Real::zero())
-	}
+    fn zero() -> Self;
+    fn int(from: usize) -> Self;
+    fn sign(&self) -> i8 {
+        if *self > Self::zero() {
+            1
+        } else if *self < Self::zero() {
+            -1
+        } else {
+            0
+        }
+    }
+    fn abs(self) -> Self {
+        if self.sign() > 0 {
+            self
+        } else if self.sign() == 0 {
+            Self::zero()
+        } else {
+            -self
+        }
+    }
+    fn cos(numerator: usize, denominator: usize) -> Self;
+    fn sin(numerator: usize, denominator: usize) -> Self;
+    fn to_float(&self) -> f64;
+    fn fine_cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.cmp(other)
+    }
+}
 
-	fn from_real(r: Self::Real) -> Self {
-		Self::raw(r, Self::Real::zero())
-	}
-	fn to_float_pair(&self) -> (f64, f64) {
-		(self.re().to_float(), self.im().to_float())
-	}
+pub trait Complex:
+    Clone + Debug + PartialEq
+    + Add<Output = Self>
+    + Mul<Output = Self>
+    + Sub<Output = Self>
+    + Div<Output = Self>
+    + Neg<Output = Self>
+{
+    type Real: Real;
+    fn re(&self) -> Self::Real;
+    fn im(&self) -> Self::Real;
+    fn raw(re: Self::Real, im: Self::Real) -> Self;
+    fn zero() -> Self {
+        Self::raw(Self::Real::zero(), Self::Real::zero())
+    }
 
-	fn abs2(&self) -> Self::Real {
-		self.re().clone() * self.re().clone() + self.im().clone() * self.im().clone()
-	}
-	fn dir(angle_num: usize, angle_den: usize) -> Self {
-		Self::raw(
-			Self::Real::cos(angle_num, angle_den),
-			Self::Real::sin(angle_num, angle_den)
-		)
-	}
-	fn polar(r: Self::Real, dir: Self) -> Self {
-		Self::from_real(r) * dir
-	}
+    fn from_real(r: Self::Real) -> Self {
+        Self::raw(r, Self::Real::zero())
+    }
+    fn to_float_pair(&self) -> (f64, f64) {
+        (self.re().to_float(), self.im().to_float())
+    }
+
+    fn abs2(&self) -> Self::Real {
+        self.re().clone() * self.re().clone() + self.im().clone() * self.im().clone()
+    }
+    fn dir(angle_num: usize, angle_den: usize) -> Self {
+        Self::raw(
+            Self::Real::cos(angle_num, angle_den),
+            Self::Real::sin(angle_num, angle_den),
+        )
+    }
+    fn polar(r: Self::Real, dir: Self) -> Self {
+        Self::from_real(r) * dir
+    }
+    fn conjugate(&self) -> Self {
+        Self::raw(self.re().clone(), -self.im().clone())
+    }
+    fn enclosure_points(&self) -> Vec<Self> {
+        vec![self.clone()]
+    }
+
+    fn same_point(left: &Self, right: &Self) -> bool {
+        left == right
+    }
+
+    fn cross_sign(left: &Self, right: &Self) -> i8 {
+        cross_product(left.clone(), right.clone()).sign()
+    }
+
+    fn orientation_sign(origin: &Self, left: &Self, right: &Self) -> i8 {
+        cross_product(
+            left.clone() - origin.clone(),
+            right.clone() - origin.clone(),
+        )
+        .sign()
+    }
+
+    fn dot_sign(left: &Self, right: &Self) -> i8 {
+        (left.re() * right.re() + left.im() * right.im()).sign()
+    }
 }
 
 pub fn cross_product<C: Complex>(a: C, b: C) -> C::Real {
-	a.re() * b.im() - a.im() * b.re()
+    a.re() * b.im() - a.im() * b.re()
 }
